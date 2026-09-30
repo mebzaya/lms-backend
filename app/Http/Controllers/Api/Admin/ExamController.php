@@ -21,6 +21,7 @@ class ExamController extends Controller
     protected const RELATIONS = [
         'schoolClass:id,name',
         'subjectExams.subject:id,name,class_id',
+        'subjectExams.subject.teachers:id,name,email',
         'subjectExams.sections.questions',
         // Just enough to tell the admin UI whether any student has already
         // started this exam — deleting it afterwards would wipe their work.
