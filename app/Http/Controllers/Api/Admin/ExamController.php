@@ -203,7 +203,25 @@ class ExamController extends Controller
     {
         abort_unless($exam->published_at !== null, 422, 'Publish the exam itself before publishing its results.');
 
-        $stillGrading = SubjectExamAttempt::whereIn('exam_id', $exam->subjectExams()->pluck('id'))
+        $subjectExamIds = $exam->subjectExams()->pluck('id');
+
+        // A student who opened the exam but never submitted before the
+        // window closed is absent, not "still being graded" — resolve that
+        // automatically (score 0) so one no-show doesn't block the whole
+        // class's results forever. Only once the window has actually closed,
+        // so a student still legitimately mid-attempt is never touched.
+        if ($exam->ends_at !== null && now()->gt($exam->ends_at)) {
+            SubjectExamAttempt::whereIn('exam_id', $subjectExamIds)
+                ->where('status', SubjectExamAttempt::STATUS_IN_PROGRESS)
+                ->each(fn (SubjectExamAttempt $attempt) => $attempt->update([
+                    'status' => SubjectExamAttempt::STATUS_GRADED,
+                    'submitted_at' => $attempt->submitted_at ?? now(),
+                    'graded_at' => now(),
+                    'score' => 0,
+                ]));
+        }
+
+        $stillGrading = SubjectExamAttempt::whereIn('exam_id', $subjectExamIds)
             ->whereIn('status', [SubjectExamAttempt::STATUS_IN_PROGRESS, SubjectExamAttempt::STATUS_SUBMITTED])
             ->exists();
 
